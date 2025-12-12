@@ -2,19 +2,14 @@
 
 Outil d'analyse de commandes e-commerce au format JSONL.
 
-## Installation
+## Required
 
-Python 3.7+ uniquement (bibliothèque standard).
+Python 3.7+ .
 
 ```bash
 # Cloner le projet
-git clone <votre-repo-url>
+git clone https://github.com/kiro1973/e-commerce_orders/
 cd orders-processor
-
-# Créer un environnement virtuel (optionnel)
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-.\venv\Scripts\activate   # Windows
 ```
 
 ## Usage
@@ -27,7 +22,7 @@ python orders_analyzer.py orders.json
 python orders_analyzer.py orders.json -from=2024-11-01
 
 # Tests unitaires
-python -m unittest test_orders.py -v
+python -m unittest test_orders.py
 ```
 
 ## Note sur le calcul du revenue
