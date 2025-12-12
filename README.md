@@ -6,7 +6,19 @@ Outil d'analyse de commandes e-commerce au format JSONL.
 
 Python 3.7+ uniquement (bibliothèque standard).
 
+```bash
+# Cloner le projet
+git clone <votre-repo-url>
+cd orders-processor
+
+# Créer un environnement virtuel (optionnel)
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+.\venv\Scripts\activate   # Windows
+```
+
 ## Usage
+
 ```bash
 # Analyse basique
 python orders_analyzer.py orders.json
@@ -14,8 +26,8 @@ python orders_analyzer.py orders.json
 # Avec filtre de date
 python orders_analyzer.py orders.json -from=2024-11-01
 
-# Tests
-python test_orders.py
+# Tests unitaires
+python -m unittest test_orders.py -v
 ```
 
 ## Note sur le calcul du revenue
@@ -24,68 +36,73 @@ python test_orders.py
 L'exemple dans le sujet montre un total de 152.94 EUR, mais ma solution calcule 147.95 EUR.
 
 **Ma logique :**
-D'après ma compréhension et recherche, il ne fait pas sens d'ajouter les valeurs négatives en omettant simplement le signe "-". On peut soit :
-- Les prendre comme valeur de dette (cashback ou retour , .....)
+D'après ma compréhension, il ne fait pas sens d'ajouter les valeurs négatives en omettant simplement le signe "-". On peut soit :
+- Les traiter comme une dette (cashback, retour, remboursement...)
 - Ne pas les prendre en considération
 
-Selon la description du cas d'usage fourni, la valeur négative est un **problème**, donc je l'omets complètement du calcul.
+Selon la description du cas d'usage fourni, la valeur négative est identifiée comme un **problème suspect**, donc je l'exclus complètement du calcul du revenue.
 
 **Résultat :**
-- Total = 147.95 EUR (pas 152.94 EUR)
-- La commande o3 avec -500 cents est exclue du total
-
-## Test de la fonctionnalité de filtrage par date
-
-J'ai ajouté une commande supplémentaire (o9) datée du 2024-10-01 avec un montant très élevé dans `orders.json` pour tester le fitre par date.
-
-**Résultat :**
-- Sans filtre : cette commande est incluse
-- Avec `-from=2024-11-01` : cette commande est exclue
-- Les tests passent dans les deux cas
-
-Cela démontre que le filtrage par date fonctionne correctement.
+- Total = 147.95 EUR (et non 152.94 EUR)
+- La commande o3 avec -500 cents est exclue du total et marquée comme suspicious
 
 ## Questions Mindset
 
 ### 1. Si ce programme tournait en production, que surveiller / logger en priorité ?
 
-**À surveiller :**
-- Nombre de commandes suspectes (taux d'anomalies)
-- Erreurs de lecture/parsing du fichier
-- Temps de traitement
-- Revenue total et par marketplace
+**Métriques de santé :**
+- Taux d'erreurs de parsing JSON (fichiers corrompus)
+- Nombre et pourcentage de commandes suspicious
+- Distribution du revenue par marketplace (détecter les anomalies)
+- Temps de traitement (performance)
 
-**À logger :**
-- Commandes suspectes avec leurs IDs et raisons
-- Erreurs avec numéro de ligne
-- Nombre de commandes traitées
+**Logs prioritaires :**
+- Erreurs de lecture de fichier pour n'importe quel raison
+- Commandes avec des montants négatifs très élevés (possibles fraudes)
+
+**Alerting :**
+- Si les commandes sont suspicious dépassent un seuil 
+- Si le temps de traitement dépasse un seuil
 
 ### 2. Si le fichier passait de 10 Ko → 10 Go, que changerais-tu dans ton approche ?
 
-**Problème actuel :**
-Le programme charge tout le fichier en mémoire.
+**Problèmes actuels :**
+- Tout est chargé en mémoire (risque d'OOM)
+- Pas de traitement en streaming
 
 **Solutions :**
-- Traiter ligne par ligne au lieu de tout charger
-- Utiliser `multiprocessing` pour traiter plusieurs parties en parallèle
-- Ajouter une barre de progression
-- Sauvegarder dans une base de données pour les très gros fichiers
+- **Streaming line-by-line** : traiter chaque ligne sans tout charger en mémoire
+- **Batching** : traiter par chunks de commandes
+- **Parallélisation** : utiliser multiprocessing pour diviser le fichier
+- **Base de données** : importer dans PostgreSQL/ClickHouse pour l'analyse
+
+**Architecture alternative :**
+```
+File → Split into Chunks → Parallel Processing → Aggregate Results → Final Output
+```
 
 ### 3. Quel est selon toi le cas de test prioritaire, et pourquoi ?
 
-**`test_mixed_orders_with_date_filter`**
+**Cas prioritaire : test_mixed_orders_with_date_filter**
 
-**Pourquoi :**
-- Teste plusieurs choses en même temps (date filter, revenue, suspicious orders)
-- Plus proche de la réalité : mix de données bonnes et mauvaises
-- Vérifie que le filtre de date fonctionne correctement
-- Si ce test passe, le programme fonctionne dans la majorité des cas
+**Raisons :**
+1. **Couverture complète** : teste plusieurs scénarios en un seul test
+   - Commandes valides
+   - Commandes suspicious (négatives + empty marketplace)
+   - Filtrage par date (feature bonus)
 
-## Structure
+2. **Cas réaliste** : en production, on aura toujours un mix de données valides et invalides
+
+
+
+Le test `test_all_suspicious_orders` est utile pour les edge cases, mais le cas mixte est plus proche de la réalité.
+
+## Structure du projet
+
 ```
-.
+orders-processor/
+├── orders.json           # Données de test (JSONL)
 ├── orders_analyzer.py    # Programme principal
-├── test_orders.py        # Tests
-├── orders.json          # Données exemple
-└── README.md            # Ce fichier
+├── test_orders.py        # Tests unitaires
+└── README.md             # Cette documentation
 ```
